@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"regexp"
 
 	flags "github.com/jessevdk/go-flags"
 
@@ -63,6 +64,7 @@ func main() {
 
 	reader := csv.NewReader(bufio.NewReader(c))
 
+	var validEIN = regexp.MustCompile(`\d+`)
 	var charities []*CharityInput
 	for {
 		line, error := reader.Read()
@@ -74,6 +76,9 @@ func main() {
 		}
 		ein := line[17]
 		if ein == "" {
+			continue
+		}
+		if !validEIN.MatchString(ein) {
 			continue
 		}
 		charities = append(charities, &CharityInput{
@@ -93,7 +98,25 @@ func main() {
 		})
 	}
 
-	fmt.Printf("Number of charities with EINs: %d\n", len(charities))
+	fmt.Printf("Number of charities with Valid EINs: %d\n", len(charities))
+
+	var charitiesWithGrants []*CharityOutput
+
+	for _, c := range charities {
+		grants, err := SelectGrants(database, c.EIN)
+		if err != nil {
+			errLog.Println(err)
+
+		}
+		charitiesWithGrants = append(charitiesWithGrants, &CharityOutput{
+			Charity: c,
+			Grants:  grants,
+		})
+	}
+}
+
+func SelectGrants(db *sql.DB, ein string) (*Grants, error) {
+	return nil, nil
 }
 
 type CharityInput struct {
@@ -115,8 +138,8 @@ type Address struct {
 }
 
 type CharityOutput struct {
-	Charity CharityInput
-	Grants  Grants
+	Charity *CharityInput
+	Grants  *Grants
 }
 
 type Grants struct {
