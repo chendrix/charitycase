@@ -11,6 +11,7 @@ import (
 	"regexp"
 
 	flags "github.com/jessevdk/go-flags"
+	"github.com/pkg/errors"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -53,7 +54,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Grants Count: %d\n", count)
+	fmt.Fprintf(os.Stderr, "Grants Count: %d\n", count)
 
 	c, err := os.Open(opts.CharityFilePath)
 	if err != nil {
@@ -98,7 +99,7 @@ func main() {
 		})
 	}
 
-	fmt.Printf("Number of charities with Valid EINs: %d\n", len(charities))
+	fmt.Fprintf(os.Stderr, "Number of charities with Valid EINs: %d\n", len(charities))
 
 	var charitiesWithGrants []*CharityOutput
 
@@ -113,10 +114,152 @@ func main() {
 			Grants:  grants,
 		})
 	}
+
+	w := csv.NewWriter(os.Stdout)
+
+	if err := w.Write(Header); err != nil {
+		errLog.Println(err)
+		os.Exit(1)
+	}
+
+	for _, c := range charitiesWithGrants {
+		if err := w.Write(c.ToFormattedSlice()); err != nil {
+			errLog.Println(err)
+			os.Exit(1)
+		}
+	}
+
+	w.Flush()
+
+	if err := w.Error(); err != nil {
+		errLog.Println(err)
+		os.Exit(1)
+	}
+}
+
+var Header = []string{
+	"EIN",
+	"Benevon Name",
+	"External Name",
+	"Addr 1",
+	"Addr 2",
+	"City",
+	"State/Province",
+	"Zip",
+	"Phone",
+	"Created Date",
+	"Close Date",
+	"2004",
+	"2005",
+	"2006",
+	"2007",
+	"2008",
+	"2009",
+	"2010",
+	"2011",
+	"2012",
+	"2013",
+	"2014",
+	"2015",
+	"2016",
+	"2017",
+}
+
+func (c *CharityOutput) ToFormattedSlice() []string {
+	return []string{
+		c.Charity.EIN,
+		c.Charity.BenevonInternalName,
+		c.Charity.ExternalName,
+		c.Charity.Address.Line1,
+		c.Charity.Address.Line2,
+		c.Charity.Address.City,
+		c.Charity.Address.StateOrProvince,
+		c.Charity.Address.Zip,
+		c.Charity.Phone,
+		c.Charity.CreatedDate,
+		c.Charity.CloseDate,
+		c.Grants._2004,
+		c.Grants._2005,
+		c.Grants._2006,
+		c.Grants._2007,
+		c.Grants._2008,
+		c.Grants._2009,
+		c.Grants._2010,
+		c.Grants._2011,
+		c.Grants._2012,
+		c.Grants._2013,
+		c.Grants._2014,
+		c.Grants._2015,
+		c.Grants._2016,
+		c.Grants._2017,
+	}
 }
 
 func SelectGrants(db *sql.DB, ein string) (*Grants, error) {
-	return nil, nil
+	rows, err := db.Query("SELECT tax_period, value FROM grants WHERE ein = ?", ein)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("reading grants for EIN %s failed", ein))
+	}
+
+	var _2004, _2005, _2006, _2007, _2008, _2009, _2010, _2011, _2012, _2013, _2014, _2015, _2016, _2017 string
+	for rows.Next() {
+		var taxPeriod, value string
+		rows.Scan(&taxPeriod, &value)
+
+		year := string([]rune(taxPeriod)[0:4])
+
+		switch year {
+		case "2004":
+			_2004 = value
+		case "2005":
+			_2005 = value
+		case "2006":
+			_2006 = value
+		case "2007":
+			_2007 = value
+		case "2008":
+			_2008 = value
+		case "2009":
+			_2009 = value
+		case "2010":
+			_2010 = value
+		case "2011":
+			_2011 = value
+		case "2012":
+			_2012 = value
+		case "2013":
+			_2013 = value
+		case "2014":
+			_2014 = value
+		case "2015":
+			_2015 = value
+		case "2016":
+			_2016 = value
+		case "2017":
+			_2017 = value
+		default:
+			return nil, fmt.Errorf("unable to match tax_period (%s) to year (%s) for ein (%s)", taxPeriod, year, ein)
+		}
+	}
+
+	g := &Grants{
+		_2004: _2004,
+		_2005: _2005,
+		_2006: _2006,
+		_2007: _2007,
+		_2008: _2008,
+		_2009: _2009,
+		_2010: _2010,
+		_2011: _2011,
+		_2012: _2012,
+		_2013: _2013,
+		_2014: _2014,
+		_2015: _2015,
+		_2016: _2016,
+		_2017: _2017,
+	}
+
+	return g, nil
 }
 
 type CharityInput struct {
